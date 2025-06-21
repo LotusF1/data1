@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <link rel="stylesheet" href="../style.css" />
+    <title>Nhập Dữ Liệu Phế Phẩm</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background: #f4f4f4;
+      }
+      h2 {
+        text-align: center;
+      }
+      form,
+      .filters,
+      .history,
+      
+      /* canvas {
+  width: 100% !important;
+  height: 300px !important;
+} */
+      .chart-container {
+        background: #fff;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      input,
+      select,
+      button {
+        margin: 5px;
+        padding: 8px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: center;
+      }
+      canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      /* canvas {
+        max-width: 100%;
+      } */
+    </style>
+  </head>
+  <body>
+    <div>
+      <ul>
+      <li><a class="active" href="../index.html">Home</a></li>
+      <li><a href="../Tình hình Line.html">Tình hình Line</a></li>
+      <li><a href="../Spare part.html">Spare part</a></li>
+      <li><a href="#about">About</a></li>
+    </pre>
+    </div>
+    <h2>Nhập Dữ Liệu Phế Phẩm Line</h2>
+    <form id="wasteForm">
+      Ngày: <input type="date" id="date" required /> Đơn hàng:
+      <input type="text" id="order" required /> Sản lượng ca ngày:
+      <input type="number" id="dayShift" min="0" /> Sản lượng ca đêm:
+      <input type="number" id="nightShift" min="0" /><br />
+      Lông: <input type="number" id="long" min="0" /> Cấn Block:
+      <input type="number" id="canBlock" min="0" /> Mạt kim loại:
+      <input type="number" id="matKimLoai" min="0" /> Dị vật:
+      <input type="number" id="diVat" min="0" /> Trầy Tail:
+      <input type="number" id="trayTail" min="0" /> Lông NL:
+      <input type="number" id="longNL" min="0" /> Dị vật NL:
+      <input type="number" id="diVatNL" min="0" />
+      <button type="submit">Lưu</button>
+      <button type="button" onclick="exportToExcel()">Xuất Excel</button>
+      <input type="file" id="importExcel" accept=".xlsx" />
+    </form>
+
+    <div class="filters">
+      <input type="text" id="searchOrder" placeholder="Tìm đơn hàng..." />
+      Hiển thị:
+      <select id="filterDays">
+        <option value="7">7 ngày</option>
+        <option value="30">30 ngày</option>
+      </select>
+    </div>
+
+    <div class="history">
+      <h3>Lịch sử nhập</h3>
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th>Đơn hàng</th>
+            <th>Ca ngày</th>
+            <th>Ca đêm</th>
+            <th>Lông</th>
+            <th>Cấn Block</th>
+            <th>Mạt kim loại</th>
+            <th>Dị vật</th>
+            <th>Trầy Tail</th>
+            <th>Lông NL</th>
+            <th>Dị vật NL</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="defectChart"></canvas>
+    </div>
+
+    <script>
+      let historyData = [];
+      const form = document.getElementById("wasteForm");
+      const dateInput = document.getElementById("date");
+      const chartEl = document.getElementById("defectChart");
+      let chart;
+
+      function saveData(entry) {
+        historyData.push(entry);
+        localStorage.setItem("wasteHistory", JSON.stringify(historyData));
+      }
+
+      function loadData() {
+        const stored = localStorage.getItem("wasteHistory");
+        if (stored) historyData = JSON.parse(stored);
+      }
+
+      function resetForm() {
+        const currentDate = dateInput.value;
+        form.reset();
+        dateInput.value = currentDate;
+      }
+
+      function renderTable() {
+        const tbody = document.querySelector("#historyTable tbody");
+        tbody.innerHTML = "";
+        const filterOrder = document
+          .getElementById("searchOrder")
+          .value.toLowerCase();
+        const filterDays = parseInt(
+          document.getElementById("filterDays").value
+        );
+        const now = new Date();
+        historyData
+          .filter((item) => {
+            const d = new Date(item.date);
+            const diff = (now - d) / (1000 * 3600 * 24);
+            return (
+              diff <= filterDays &&
+              item.order.toLowerCase().includes(filterOrder)
+            );
+          })
+          .forEach((item) => {
+            const row = `<tr><td>${item.date}</td><td>${item.order}</td><td>${item.dayShift}</td><td>${item.nightShift}</td>
+      <td>${item.long}</td><td>${item.canBlock}</td><td>${item.matKimLoai}</td>
+      <td>${item.diVat}</td><td>${item.trayTail}</td><td>${item.longNL}</td><td>${item.diVatNL}</td></tr>`;
+            tbody.innerHTML += row;
+          });
+      }
+
+      function renderChart() {
+        const filterDays = parseInt(
+          document.getElementById("filterDays").value
+        );
+        const now = new Date();
+        const filtered = historyData.filter(
+          (item) =>
+            (now - new Date(item.date)) / (1000 * 3600 * 24) <= filterDays
+        );
+
+        const labels = filtered.map(
+          (item) => item.date + " (" + item.order + ")"
+        );
+        const long = filtered.map((item) => item.long);
+        const canBlock = filtered.map((item) => item.canBlock);
+        const matKimLoai = filtered.map((item) => item.matKimLoai);
+        const diVat = filtered.map((item) => item.diVat);
+        const trayTail = filtered.map((item) => item.trayTail);
+        const longNL = filtered.map((item) => item.longNL);
+        const diVatNL = filtered.map((item) => item.diVatNL);
+
+        const totalDefects = filtered.map(
+          (item) =>
+            item.long +
+            item.canBlock +
+            item.matKimLoai +
+            item.diVat +
+            item.trayTail +
+            item.longNL +
+            item.diVatNL
+        );
+        const totalProduction = filtered.map(
+          (item) => item.dayShift + item.nightShift
+        );
+        const defectRates = totalDefects.map((total, i) =>
+          totalProduction[i] > 0
+            ? ((total / totalProduction[i]) * 100).toFixed(2)
+            : 0
+        );
+
+        if (chart) chart.destroy();
+        chart = new Chart(chartEl, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Lông",
+                data: long,
+                backgroundColor: "#f44336",
+                stack: "defects",
+              },
+              {
+                label: "Cấn Block",
+                data: canBlock,
+                backgroundColor: "#2196f3",
+                stack: "defects",
+              },
+              {
+                label: "Mạt kim loại",
+                data: matKimLoai,
+                backgroundColor: "#ff9800",
+                stack: "defects",
+              },
+              {
+                label: "Dị vật",
+                data: diVat,
+                backgroundColor: "#4caf50",
+                stack: "defects",
+              },
+              {
+                label: "Trầy Tail",
+                data: trayTail,
+                backgroundColor: "#9c27b0",
+                stack: "defects",
+              },
+              {
+                label: "Lông NL",
+                data: longNL,
+                backgroundColor: "#795548",
+                stack: "defects",
+              },
+              {
+                label: "Dị vật NL",
+                data: diVatNL,
+                backgroundColor: "#607d8b",
+                stack: "defects",
+              },
+              {
+                type: "line",
+                label: "Tỷ lệ lỗi (%)",
+                data: defectRates,
+                borderColor: "#000",
+                backgroundColor: "#000",
+                yAxisID: "y2",
+                tension: 0.3,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: "top" },
+              tooltip: { enabled: true },
+              title: {
+                display: true,
+                text: "Biểu đồ Phế Phẩm và Tỷ Lệ Lỗi (%)",
+              },
+              datalabels: {
+                anchor: "end",
+                align: "top",
+                formatter: (value) => value,
+                font: {
+                  weight: "bold",
+                },
+              },
+            },
+            interaction: {
+              mode: "index",
+              intersect: false,
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                stacked: true,
+                title: {
+                  display: true,
+                  text: "Số lượng lỗi",
+                },
+              },
+              y2: {
+                beginAtZero: true,
+                position: "right",
+                title: {
+                  display: true,
+                  text: "Tỷ lệ lỗi (%)",
+                },
+                grid: {
+                  drawOnChartArea: false,
+                },
+              },
+            },
+          },
+          plugins: [ChartDataLabels],
+        });
+      }
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const entry = {
+          date: dateInput.value,
+          order: document.getElementById("order").value,
+          dayShift: +document.getElementById("dayShift").value || 0,
+          nightShift: +document.getElementById("nightShift").value || 0,
+          long: +document.getElementById("long").value || 0,
+          canBlock: +document.getElementById("canBlock").value || 0,
+          matKimLoai: +document.getElementById("matKimLoai").value || 0,
+          diVat: +document.getElementById("diVat").value || 0,
+          trayTail: +document.getElementById("trayTail").value || 0,
+          longNL: +document.getElementById("longNL").value || 0,
+          diVatNL: +document.getElementById("diVatNL").value || 0,
+        };
+        saveData(entry);
+        renderTable();
+        renderChart();
+      });
+
+      function exportToExcel() {
+        const ws = XLSX.utils.json_to_sheet(historyData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "History");
+        XLSX.writeFile(wb, "lich_su_phe_pham.xlsx");
+      }
+
+      document
+        .getElementById("importExcel")
+        .addEventListener("change", function (evt) {
+          const file = evt.target.files[0];
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheetName = workbook.SheetNames[0];
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+            historyData = json;
+            localStorage.setItem("wasteHistory", JSON.stringify(historyData));
+            renderTable();
+            renderChart();
+          };
+          reader.readAsArrayBuffer(file);
+        });
+
+      document.getElementById("searchOrder").addEventListener("input", () => {
+        renderTable();
+        renderChart();
+      });
+
+      document.getElementById("filterDays").addEventListener("change", () => {
+        renderTable();
+        renderChart();
+      });
+
+      dateInput.addEventListener("change", resetForm);
+
+      loadData();
+      renderTable();
+      renderChart();
+      setInterval(renderChart, 5000);
+    </script>
+  </body>
+</html>
